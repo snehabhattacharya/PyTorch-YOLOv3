@@ -1,0 +1,7 @@
+classes=2
+train=data/kaist_data/imagesetfile_test.txt
+valid=data/coco/5k.txt
+names=data/kaist.names
+backup=backup/
+eval=kaist
+

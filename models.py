@@ -74,12 +74,14 @@ def create_modules(module_defs):
             modules.add_module("shortcut_%d" % i, EmptyLayer())
 
         elif module_def["type"] == "yolo":
+           
             anchor_idxs = [int(x) for x in module_def["mask"].split(",")]
             # Extract anchors
             anchors = [int(x) for x in module_def["anchors"].split(",")]
             anchors = [(anchors[i], anchors[i + 1]) for i in range(0, len(anchors), 2)]
             anchors = [anchors[i] for i in anchor_idxs]
             num_classes = int(module_def["classes"])
+            #print(num_classes, "num_classes at module_def")
             img_height = int(hyperparams["height"])
             # Define detection layer
             yolo_layer = YOLOLayer(anchors, num_classes, img_height)
@@ -105,6 +107,7 @@ class YOLOLayer(nn.Module):
         super(YOLOLayer, self).__init__()
         self.anchors = anchors
         self.num_anchors = len(anchors)
+        #print(num_classes, "numclasses at module_def")
         self.num_classes = num_classes
         self.bbox_attrs = 5 + num_classes
         self.image_dim = img_dim
@@ -116,11 +119,16 @@ class YOLOLayer(nn.Module):
         self.ce_loss = nn.CrossEntropyLoss()  # Class loss
 
     def forward(self, x, targets=None):
+        #print(x.size(), "size of x in Yolo")
+        #print(self.bbox_attrs, "bbox attrs")
+      
         nA = self.num_anchors
         nB = x.size(0)
         nG = x.size(2)
         stride = self.image_dim / nG
-
+        #print(nA, "anchors")
+        #print(nG, "nG")
+        #print(nB, "nB")
         # Tensors for cuda support
         FloatTensor = torch.cuda.FloatTensor if x.is_cuda else torch.FloatTensor
         LongTensor = torch.cuda.LongTensor if x.is_cuda else torch.LongTensor
@@ -149,7 +157,7 @@ class YOLOLayer(nn.Module):
         pred_boxes[..., 1] = y.data + grid_y
         pred_boxes[..., 2] = torch.exp(w.data) * anchor_w
         pred_boxes[..., 3] = torch.exp(h.data) * anchor_h
-
+        #print(prediction)
         # Training
         if targets is not None:
 
@@ -199,7 +207,11 @@ class YOLOLayer(nn.Module):
             loss_conf = self.bce_loss(pred_conf[conf_mask_false], tconf[conf_mask_false]) + self.bce_loss(
                 pred_conf[conf_mask_true], tconf[conf_mask_true]
             )
+            
+            
+            #print(mask.shape)
             loss_cls = (1 / nB) * self.ce_loss(pred_cls[mask], torch.argmax(tcls[mask], 1))
+           
             loss = loss_x + loss_y + loss_w + loss_h + loss_conf + loss_cls
 
             return (
@@ -224,6 +236,10 @@ class YOLOLayer(nn.Module):
                 ),
                 -1,
             )
+            #print(pred_boxes,"pred_boxes")
+            #rint(pred_conf,"pred_conf")
+            #print(pred_cls,"pred_cls")
+
             return output
 
 
@@ -232,6 +248,8 @@ class Darknet(nn.Module):
 
     def __init__(self, config_path, img_size=416):
         super(Darknet, self).__init__()
+        print("config pathhhh")
+        print(config_path)
         self.module_defs = parse_model_config(config_path)
         self.hyperparams, self.module_list = create_modules(self.module_defs)
         self.img_size = img_size
@@ -240,6 +258,9 @@ class Darknet(nn.Module):
         self.loss_names = ["x", "y", "w", "h", "conf", "cls", "recall", "precision"]
 
     def forward(self, x, targets=None):
+        #print(x.size(), "in darknet")
+        #print(targets.size())
+        
         is_training = targets is not None
         output = []
         self.losses = defaultdict(float)
@@ -248,13 +269,20 @@ class Darknet(nn.Module):
             if module_def["type"] in ["convolutional", "upsample", "maxpool"]:
                 x = module(x)
             elif module_def["type"] == "route":
+                #print("route")
                 layer_i = [int(x) for x in module_def["layers"].split(",")]
                 x = torch.cat([layer_outputs[i] for i in layer_i], 1)
             elif module_def["type"] == "shortcut":
+                #print("shortcut")
                 layer_i = int(module_def["from"])
+                
+                
                 x = layer_outputs[-1] + layer_outputs[layer_i]
+                #print(x.size(), "after shortcut")
             elif module_def["type"] == "yolo":
+              
                 # Train phase: get loss
+                #print(x.size(), "before yolo")
                 if is_training:
                     x, *losses = module[0](x, targets)
                     for name, loss in zip(self.loss_names, losses):
@@ -267,6 +295,7 @@ class Darknet(nn.Module):
 
         self.losses["recall"] /= 3
         self.losses["precision"] /= 3
+        
         return sum(output) if is_training else torch.cat(output, 1)
 
     def load_weights(self, weights_path):

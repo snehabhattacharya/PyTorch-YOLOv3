@@ -134,17 +134,34 @@ def non_max_suppression(prediction, num_classes, conf_thres=0.5, nms_thres=0.4):
 
     # From (center x, center y, width, height) to (x1, y1, x2, y2)
     box_corner = prediction.new(prediction.shape)
+    # was -
     box_corner[:, :, 0] = prediction[:, :, 0] - prediction[:, :, 2] / 2
     box_corner[:, :, 1] = prediction[:, :, 1] - prediction[:, :, 3] / 2
     box_corner[:, :, 2] = prediction[:, :, 0] + prediction[:, :, 2] / 2
     box_corner[:, :, 3] = prediction[:, :, 1] + prediction[:, :, 3] / 2
     prediction[:, :, :4] = box_corner[:, :, :4]
+    #print( "zero", prediction[:, :, 0])
+    #print("one", prediction[:, :, 1])
+    #print( "two", prediction[:, :, 2])
+    #print( "three", prediction[:, :, 3])
 
     output = [None for _ in range(len(prediction))]
+    #print(prediction[:,:,0], "prediction")
+    #print(prediction[:,:,1], "prediction")
+    #print(prediction[:,:,2], "prediction")
+    #print(prediction[:,:,3], "prediction")
+    #print(prediction[:,:,4], "prediction")
+    #conf_thres = 0.1
+    #nms_thres = 0.1
+
     for image_i, image_pred in enumerate(prediction):
         # Filter out confidence scores below threshold
+        #print(image_pred,"image_pred")
+        #print(image_pred.size())
         conf_mask = (image_pred[:, 4] >= conf_thres).squeeze()
+        #print (np.count_nonzero(conf_mask),"non zero")
         image_pred = image_pred[conf_mask]
+        
         # If none are remaining => process next image
         if not image_pred.size(0):
             continue
@@ -152,6 +169,7 @@ def non_max_suppression(prediction, num_classes, conf_thres=0.5, nms_thres=0.4):
         class_conf, class_pred = torch.max(image_pred[:, 5 : 5 + num_classes], 1, keepdim=True)
         # Detections ordered as (x1, y1, x2, y2, obj_conf, class_conf, class_pred)
         detections = torch.cat((image_pred[:, :5], class_conf.float(), class_pred.float()), 1)
+        print(detections)
         # Iterate through all predicted classes
         unique_labels = detections[:, -1].cpu().unique()
         if prediction.is_cuda:
@@ -173,6 +191,7 @@ def non_max_suppression(prediction, num_classes, conf_thres=0.5, nms_thres=0.4):
                 # Get the IOUs for all boxes with lower confidence
                 ious = bbox_iou(max_detections[-1], detections_class[1:])
                 # Remove detections with IoU >= NMS threshold
+                print (ious, nms_thres)
                 detections_class = detections_class[1:][ious < nms_thres]
 
             max_detections = torch.cat(max_detections).data
@@ -199,7 +218,7 @@ def build_targets(
     th = torch.zeros(nB, nA, nG, nG)
     tconf = torch.ByteTensor(nB, nA, nG, nG).fill_(0)
     tcls = torch.ByteTensor(nB, nA, nG, nG, nC).fill_(0)
-
+    #print(target, "target")
     nGT = 0
     nCorrect = 0
     for b in range(nB):

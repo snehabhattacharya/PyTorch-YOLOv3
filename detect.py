@@ -24,8 +24,8 @@ parser.add_argument('--image_folder', type=str, default='data/samples', help='pa
 parser.add_argument('--config_path', type=str, default='config/yolov3.cfg', help='path to model config file')
 parser.add_argument('--weights_path', type=str, default='weights/yolov3.weights', help='path to weights file')
 parser.add_argument('--class_path', type=str, default='data/coco.names', help='path to class label file')
-parser.add_argument('--conf_thres', type=float, default=0.8, help='object confidence threshold')
-parser.add_argument('--nms_thres', type=float, default=0.4, help='iou thresshold for non-maximum suppression')
+parser.add_argument('--conf_thres', type=float, default=0.9, help='object confidence threshold')
+parser.add_argument('--nms_thres', type=float, default=0.9, help='iou thresshold for non-maximum suppression')
 parser.add_argument('--batch_size', type=int, default=1, help='size of the batches')
 parser.add_argument('--n_cpu', type=int, default=8, help='number of cpu threads to use during batch generation')
 parser.add_argument('--img_size', type=int, default=416, help='size of each image dimension')
@@ -39,7 +39,7 @@ os.makedirs('output', exist_ok=True)
 
 # Set up model
 model = Darknet(opt.config_path, img_size=opt.img_size)
-model.load_weights(opt.weights_path)
+model.load_state_dict(torch.load(opt.weights_path))
 
 if cuda:
     model.cuda()
@@ -61,19 +61,24 @@ prev_time = time.time()
 for batch_i, (img_paths, input_imgs) in enumerate(dataloader):
     # Configure input
     input_imgs = Variable(input_imgs.type(Tensor))
-
+    #print(input_imgs, "dataaaa")
     # Get detections
     with torch.no_grad():
         detections = model(input_imgs)
-        detections = non_max_suppression(detections, 80, opt.conf_thres, opt.nms_thres)
-
+        #print(detections[detections<0])
+        #   print("here")
+        print(img_paths)
+        #print(detections[0,1], "detections_2")
+        #print(img_paths)
+        detections = non_max_suppression(detections, 2, opt.conf_thres, opt.nms_thres)
+        #print(detections[:,0,:])
 
     # Log progress
     current_time = time.time()
     inference_time = datetime.timedelta(seconds=current_time - prev_time)
     prev_time = current_time
     print ('\t+ Batch %d, Inference Time: %s' % (batch_i, inference_time))
-
+    #print (detections)
     # Save image and detections
     imgs.extend(img_paths)
     img_detections.extend(detections)
@@ -82,12 +87,13 @@ for batch_i, (img_paths, input_imgs) in enumerate(dataloader):
 cmap = plt.get_cmap('tab20b')
 colors = [cmap(i) for i in np.linspace(0, 1, 20)]
 
+
 print ('\nSaving images:')
 # Iterate through images and save plot of detections
 for img_i, (path, detections) in enumerate(zip(imgs, img_detections)):
 
     print ("(%d) Image: '%s'" % (img_i, path))
-
+    #print(detections)
     # Create plot
     img = np.array(Image.open(path))
     plt.figure()
@@ -100,14 +106,14 @@ for img_i, (path, detections) in enumerate(zip(imgs, img_detections)):
     # Image height and width after padding is removed
     unpad_h = opt.img_size - pad_y
     unpad_w = opt.img_size - pad_x
-
+    print(classes)
     # Draw bounding boxes and labels of detections
     if detections is not None:
         unique_labels = detections[:, -1].cpu().unique()
         n_cls_preds = len(unique_labels)
         bbox_colors = random.sample(colors, n_cls_preds)
         for x1, y1, x2, y2, conf, cls_conf, cls_pred in detections:
-
+            print(x1,y1,x2,y2,path)
             print ('\t+ Label: %s, Conf: %.5f' % (classes[int(cls_pred)], cls_conf.item()))
 
             # Rescale coordinates to original dimensions
@@ -133,3 +139,4 @@ for img_i, (path, detections) in enumerate(zip(imgs, img_detections)):
     plt.gca().yaxis.set_major_locator(NullLocator())
     plt.savefig('output/%d.png' % (img_i), bbox_inches='tight', pad_inches=0.0)
     plt.close()
+
