@@ -1,6 +1,6 @@
 classes=2
-train=data/kaist_data/imagesetfile_test.txt
-valid=data/coco/5k.txt
+train=/mnt/nfs/scratch1/dghose/Kaist/Imagesetfiles/combined_train_imagesetfile.txt
+valid=/mnt/nfs/scratch1/dghose/Kaist/Imagesetfiles/combined_test_imagesetfile.txt
 names=data/kaist.names
 backup=backup/
 eval=kaist

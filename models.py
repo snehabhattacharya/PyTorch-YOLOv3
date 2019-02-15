@@ -181,7 +181,7 @@ class YOLOLayer(nn.Module):
 
             nProposals = int((pred_conf > 0.5).sum().item())
             recall = float(nCorrect / nGT) if nGT else 1
-            precision = float(nCorrect / nProposals)
+            precision = float(nCorrect / nProposals) if nProposals else 0
 
             # Handle masks
             mask = Variable(mask.type(ByteTensor))
@@ -210,8 +210,19 @@ class YOLOLayer(nn.Module):
             
             
             #print(mask.shape)
-            loss_cls = (1 / nB) * self.ce_loss(pred_cls[mask], torch.argmax(tcls[mask], 1))
-           
+            #print(pred_cls.shape)
+            #print (pred_cls[mask].size())
+            #if mask.float().sum().data[0] == 0:
+                 
+            #    print (mask)
+            #    print (pred_cls)
+            try:
+                loss_cls = (1 / nB) * self.ce_loss(pred_cls[mask], torch.argmax(tcls[mask], 1))
+            except:
+                #print(mask.shape)
+                #print(pred_cls.shape)
+                if mask.float().sum().data[0] == 0:
+                    loss_cls = (1 / nB) * self.ce_loss(pred_cls, torch.argmax(tcls, 1))    
             loss = loss_x + loss_y + loss_w + loss_h + loss_conf + loss_cls
 
             return (

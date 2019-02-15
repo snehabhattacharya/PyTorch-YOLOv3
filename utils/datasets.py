@@ -18,9 +18,7 @@ import sys
 
 class ImageFolder(Dataset):
     def __init__(self, folder_path, img_size=416):
-        print(folder_path,"foldeer")
         self.files = sorted(glob.glob('%s/*.*' % folder_path))
-        print (self.files)
         self.img_shape = (img_size, img_size)
 
     def __getitem__(self, index):
@@ -41,7 +39,7 @@ class ImageFolder(Dataset):
         input_img = np.transpose(input_img, (2, 0, 1))
         # As pytorch tensor
         input_img = torch.from_numpy(input_img).float()
-
+        #print(input_img.shape,"new shape")
         return img_path, input_img
 
     def __len__(self):
@@ -50,39 +48,62 @@ class ImageFolder(Dataset):
     #self._class_to_ind = dict(zip(self.classes, xrange(self.num_classes)))
 
 class ListDataset(Dataset):
-    def __init__(self, list_path, img_size=416):
-        print(list_path)
+    def __init__(self, list_path,mode="train",is_salient=False, img_size=416):
+        #print(list_path)
+        imagesetfiles = "Kaist/Imagesetfiles"
         with open(list_path, 'r') as file:
             self.img_files = file.readlines()
-        full_path = "/home/snehabhattac/PyTorch-YOLOv3/data/test_data/lwir/"
-        self.img_files = [full_path+i.strip()+".jpg" for i in self.img_files]
-        self.label_files = [path.replace('test_data/lwir/', 'kaist_data/annotations/set05/V000/').replace('.png', '.txt').replace('.jpg', '.txt') for path in self.img_files]
-        print(self.label_files)
+        if is_salient and mode == "train":
+            full_path = "/mnt/nfs/scratch1/dghose/Kaist/salient_combined_train/"
+            self.img_files = [full_path+i.strip()+".jpg" for i in self.img_files]
+            self.label_files = [path.replace('salient_combined_train', 'anno_salient_combined_train').replace('.png', '.txt').replace('.jpg', '.txt') for path in self.img_files]
+        
+        if is_salient and mode == "test":
+            full_path = "/mnt/nfs/scratch1/dghose/Kaist/salient_combined_test/"
+            self.img_files = [full_path+i.strip()+".jpg" for i in self.img_files]
+            self.label_files = [path.replace('salient_combined_test', 'anno_salient_combined_test').replace('.png', '.txt').replace('.jpg', '.txt') for path in self.img_files]
+
+        
+        if mode == "train" and not is_salient:
+            full_path = "/mnt/nfs/scratch1/dghose/Kaist/combined_train/"
+            self.img_files = [full_path+i.strip()+".jpg" for i in self.img_files]
+            self.label_files = [path.replace('combined_train', 'anno_combined_train').replace('.png', '.txt').replace('.jpg', '.txt') for path in self.img_files]
+        
+        if mode == "test" and not is_salient:
+            full_path = "/mnt/nfs/scratch1/dghose/Kaist/combined_test/"
+            self.img_files = [full_path+i.strip()+".jpg" for i in self.img_files]
+            self.label_files = [path.replace('combined_test', 'anno_combined_test').replace('.png', '.txt').replace('.jpg', '.txt') for path in self.img_files]
+
+        #print(self.label_files)
         #/home/snehabhattac/PyTorch-YOLOv3/data/kaist_data/annotations/set05/V000
         self.img_shape = (img_size, img_size)
         self.max_objects = 10
         self.classes = ('__background__', # always index 0
                          'person')
         self.class_to_ind = dict(zip(self.classes, range(self.max_objects)))
-
-
+        #print(self.img_files)
+        
+    
     def __getitem__(self, index):
 
         #---------
         #  Image
         #---------
-
+        #print("index",index)
         img_path = self.img_files[index % len(self.img_files)].rstrip()
+        #print("here")
         #print(img_path)
         #print(self.img_files)
         img = np.array(Image.open(img_path))
         #/pprint("hereeeeeeeeeeee")
         # Handles images with less than three channels
-        while len(img.shape) != 3:
+        if len(img.shape)!=3:
+            img = np.tile(img[:, :, np.newaxis], [1, 1, 3])
+        #while len(img.shape) != 3:
             #print("here222222222222")
-            index += 1
-            img_path = self.img_files[index % len(self.img_files)].rstrip()
-            img = np.array(Image.open(img_path))
+        #    index += 1
+        #    img_path = self.img_files[index % len(self.img_files)].rstrip()
+        #    img = np.array(Image.open(img_path))
 
         h, w, _ = img.shape
         dim_diff = np.abs(h - w)
@@ -95,10 +116,14 @@ class ListDataset(Dataset):
         padded_h, padded_w, _ = input_img.shape
         # Resize and normalize
         input_img = resize(input_img, (*self.img_shape, 3), mode='reflect')
+        #print(self.img_shape)
+        #print(input_img.shape)
         # Channels-first
         input_img = np.transpose(input_img, (2, 0, 1))
         # As pytorch tensor
         input_img = torch.from_numpy(input_img).float()
+ 
+       
         #print(input_img.shape,"shape")
 
         #---------
@@ -136,11 +161,11 @@ class ListDataset(Dataset):
                 #print (x,y, w_, h_,label_path)
                 x = x +  float(w_/2)
                 y = y +  float(h_/2) 
-                x = x/padded_w
-                y = y/padded_h
-                w_ = w_/padded_w
-                h_ = h_/padded_h
-                print(x,y,w_,h_) 
+                x = x/w
+                y = y/h
+                w_ = w_/w
+                h_ = h_/h
+                #print(x,y,w_,h_) 
                 # Adjust for added padding
                 #x1 += pad[1][0]
                 #y1 += pad[0][0]

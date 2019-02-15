@@ -169,7 +169,7 @@ def non_max_suppression(prediction, num_classes, conf_thres=0.5, nms_thres=0.4):
         class_conf, class_pred = torch.max(image_pred[:, 5 : 5 + num_classes], 1, keepdim=True)
         # Detections ordered as (x1, y1, x2, y2, obj_conf, class_conf, class_pred)
         detections = torch.cat((image_pred[:, :5], class_conf.float(), class_pred.float()), 1)
-        print(detections)
+        #print(detections)
         # Iterate through all predicted classes
         unique_labels = detections[:, -1].cpu().unique()
         if prediction.is_cuda:
@@ -191,7 +191,7 @@ def non_max_suppression(prediction, num_classes, conf_thres=0.5, nms_thres=0.4):
                 # Get the IOUs for all boxes with lower confidence
                 ious = bbox_iou(max_detections[-1], detections_class[1:])
                 # Remove detections with IoU >= NMS threshold
-                print (ious, nms_thres)
+                #print (ious, nms_thres)
                 detections_class = detections_class[1:][ious < nms_thres]
 
             max_detections = torch.cat(max_detections).data

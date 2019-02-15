@@ -27,8 +27,8 @@ parser.add_argument("--weights_path", type=str, default="weights/yolov3.weights"
 parser.add_argument("--class_path", type=str, default="data/coco.names", help="path to class label file")
 parser.add_argument("--iou_thres", type=float, default=0.5, help="iou threshold required to qualify as detected")
 parser.add_argument("--conf_thres", type=float, default=0.5, help="object confidence threshold")
-parser.add_argument("--nms_thres", type=float, default=0.45, help="iou thresshold for non-maximum suppression")
-parser.add_argument("--n_cpu", type=int, default=0, help="number of cpu threads to use during batch generation")
+parser.add_argument("--nms_thres", type=float, default=0.1, help="iou thresshold for non-maximum suppression")
+parser.add_argument("--n_cpu", type=int, default=4, help="number of cpu threads to use during batch generation")
 parser.add_argument("--img_size", type=int, default=416, help="size of each image dimension")
 parser.add_argument("--use_cuda", type=bool, default=True, help="whether to use cuda if available")
 opt = parser.parse_args()
@@ -43,7 +43,8 @@ num_classes = int(data_config["classes"])
 
 # Initiate model
 model = Darknet(opt.model_config_path)
-model.load_weights(opt.weights_path)
+model.load_state_dict(torch.load(opt.weights_path))
+
 
 if cuda:
     model = model.cuda()
@@ -51,7 +52,7 @@ if cuda:
 model.eval()
 
 # Get dataloader
-dataset = ListDataset(test_path)
+dataset = ListDataset(test_path, mode="test", is_salient=False)
 dataloader = torch.utils.data.DataLoader(dataset, batch_size=opt.batch_size, shuffle=False, num_workers=opt.n_cpu)
 
 Tensor = torch.cuda.FloatTensor if cuda else torch.FloatTensor
@@ -67,8 +68,9 @@ for batch_i, (_, imgs, targets) in enumerate(tqdm.tqdm(dataloader, desc="Detecti
 
     with torch.no_grad():
         outputs = model(imgs)
-        outputs = non_max_suppression(outputs, 80, conf_thres=opt.conf_thres, nms_thres=opt.nms_thres)
-
+        #print("jere") 
+        outputs = non_max_suppression(outputs, 2, conf_thres=opt.conf_thres, nms_thres=opt.nms_thres)
+        
     for output, annotations in zip(outputs, targets):
 
         all_detections.append([np.array([]) for _ in range(num_classes)])
@@ -82,7 +84,7 @@ for batch_i, (_, imgs, targets) in enumerate(tqdm.tqdm(dataloader, desc="Detecti
             sort_i = np.argsort(scores)
             pred_labels = pred_labels[sort_i]
             pred_boxes = pred_boxes[sort_i]
-
+            
             for label in range(num_classes):
                 all_detections[-1][label] = pred_boxes[pred_labels == label]
 
@@ -102,6 +104,7 @@ for batch_i, (_, imgs, targets) in enumerate(tqdm.tqdm(dataloader, desc="Detecti
 
             for label in range(num_classes):
                 all_annotations[-1][label] = annotation_boxes[annotation_labels == label, :]
+    
 
 average_precisions = {}
 for label in range(num_classes):
@@ -112,7 +115,7 @@ for label in range(num_classes):
     for i in tqdm.tqdm(range(len(all_annotations)), desc=f"Computing AP for class '{label}'"):
         detections = all_detections[i][label]
         annotations = all_annotations[i][label]
-
+        #print(all_detections)
         num_annotations += annotations.shape[0]
         detected_annotations = []
 
@@ -127,7 +130,8 @@ for label in range(num_classes):
             assigned_annotation = np.argmax(overlaps, axis=1)
             max_overlap = overlaps[0, assigned_annotation]
 
-            if max_overlap >= opt.iou_thres and assigned_annotation not in detected_annotations:
+            #if max_overlap >= opt.iou_thres and assigned_annotation not in detected_annotations:
+            if max_overlap >= opt.iou_thres:
                 true_positives.append(1)
                 detected_annotations.append(assigned_annotation)
             else:
@@ -137,11 +141,11 @@ for label in range(num_classes):
     if num_annotations == 0:
         average_precisions[label] = 0
         continue
-
+    print(sum(true_positives), "true positives")
     true_positives = np.array(true_positives)
     false_positives = np.ones_like(true_positives) - true_positives
     # sort by score
-    indices = np.argsort(-np.array(scores))
+    indices = np.argsort(np.array(scores))
     false_positives = false_positives[indices]
     true_positives = true_positives[indices]
 
@@ -152,8 +156,13 @@ for label in range(num_classes):
     # compute recall and precision
     recall = true_positives / num_annotations
     precision = true_positives / np.maximum(true_positives + false_positives, np.finfo(np.float64).eps)
-
+    
+    print(np.mean(recall), "Recall")
+    print(np.mean(precision), "Precision")
     # compute average precision
+    print(true_positives, "true pos")
+    print(false_positives,"false pos")
+    print(num_annotations, "num annotations")
     average_precision = compute_ap(recall, precision)
     average_precisions[label] = average_precision
 

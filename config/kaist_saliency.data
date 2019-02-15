@@ -1,0 +1,7 @@
+classes=2
+train=/mnt/nfs/scratch1/dghose/Kaist/Imagesetfiles/salient_combined_train_imagesetfile.txt
+valid=/mnt/nfs/scratch1/dghose/Kaist/Imagesetfiles/salient_combined_test_imagesetfile.txt
+names=data/kaist.names
+backup=backup/
+eval=kaist
+
